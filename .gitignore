@@ -10,28 +10,48 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
 # next.js
 /.next/
 /out/
 
-# production
+# production / build artifacts
 /build
+/dist
 
-# misc
-.DS_Store
-*.pem
+# testing
+/coverage
 
-# debug
+# env files
+.env
+.env.*
+!.env.example
+
+# logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# saved drawings (runtime output)
+/saved-drawings
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# editor / IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+
+# misc
+*.pem
 
 # vercel
 .vercel

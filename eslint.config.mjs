@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Custom Node server — plain CommonJS, not compiled by Next.
+    "server.js",
   ]),
 ]);
 
