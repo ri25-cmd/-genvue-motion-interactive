@@ -1,13 +1,10 @@
 import { NextRequest } from 'next/server'
-import { randomUUID } from 'crypto'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
+import cloudinary from '@/lib/cloudinary'
 
-// Save a drawing PNG to disk and return a URL that phones on the same Wi-Fi
-// can open (built from the Host the controller used, so it stays LAN-correct).
+// Save a drawing PNG by uploading it to Cloudinary and returning the public
+// secure_url. This replaces the old local-filesystem approach (mkdir/writeFile
+// into /saved-drawings), which doesn't survive on Render's ephemeral disk.
 export const runtime = 'nodejs'
-
-const SAVE_DIR = path.join(process.cwd(), 'saved-drawings')
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,17 +13,16 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Invalid image data' }, { status: 400 })
     }
 
-    const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-    const buffer = Buffer.from(base64, 'base64')
+    // Cloudinary accepts a base64 data URI directly, so the PNG can be handed
+    // over as-is with no intermediate buffer or temp file.
+    const result = await cloudinary.uploader.upload(dataUrl, {
+      folder: 'genvue-drawings',
+      resource_type: 'image',
+    })
 
-    await mkdir(SAVE_DIR, { recursive: true })
-    const filename = `genvue-${randomUUID()}.png`
-    await writeFile(path.join(SAVE_DIR, filename), buffer)
-
-    const host = request.headers.get('host') ?? 'localhost:3000'
-    const url = `http://${host}/api/image/${filename}`
-
-    return Response.json({ filename, url })
+    // The QR code on the controller is built from this url, so returning the
+    // Cloudinary secure_url makes the QR point straight at the hosted image.
+    return Response.json({ url: result.secure_url })
   } catch {
     return Response.json({ error: 'Failed to save' }, { status: 500 })
   }
