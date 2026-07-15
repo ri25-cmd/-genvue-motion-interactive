@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from 'react'
+import Image from 'next/image'
 import QRCode from 'qrcode'
+import genvueLogo from '@/public/images/genvue-logo.png'
 import { getSocket } from '@/lib/socket'
 import { fileToDataUrl, loadImage } from '@/lib/image'
 import { drawStroke, redrawAll, type Stroke, type Tool, type Point } from '@/lib/drawing'
@@ -384,60 +386,59 @@ export default function ControlPage() {
       <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
         <button
           onClick={handleClearAll}
-          className="rounded-xl bg-white px-3 py-1.5 text-sm font-medium text-gray-600 shadow-sm ring-1 ring-gray-200 backdrop-blur-xl transition-colors duration-200 hover:text-red-500"
+          className="rounded-xl bg-white px-3 py-1.5 text-sm font-medium text-gray-600 shadow-sm ring-1 ring-gray-200 backdrop-blur-xl transition-colors duration-200 hover:text-gray-900"
         >
           Clear All
         </button>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="rounded-xl bg-blue-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-xl bg-[#2F3E63] px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-[#26324f] disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save Drawing'}
         </button>
       </div>
 
-      {/* Collapsed tab — a small floating handle that expands the panel */}
-      <button
-        onClick={() => setPanelOpen(true)}
-        aria-label="Show tools"
-        className={`absolute left-4 top-4 z-20 flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-sm font-medium capitalize text-gray-700 shadow-[0_8px_24px_rgba(15,23,42,0.08)] ring-1 ring-gray-200 backdrop-blur-xl transition-all duration-200 ease-out hover:bg-white ${
-          panelOpen ? 'pointer-events-none -translate-x-1 opacity-0' : 'opacity-100'
-        }`}
-      >
-        <ChevronRight />
-        {section}
-      </button>
-
-      {/* Floating tool panel (top-left) */}
+      {/* Floating laminated-glass toolbar (top-left) */}
       <div
-        className={`absolute left-4 top-4 z-10 flex max-h-[calc(100dvh-2rem)] w-[min(90vw,320px)] flex-col rounded-2xl bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] ring-1 ring-gray-200 backdrop-blur-xl transition-all duration-200 ease-out ${
-          panelOpen ? 'opacity-100' : 'pointer-events-none -translate-x-[120%] opacity-0'
+        className={`absolute left-4 top-4 z-10 flex max-h-[calc(100dvh-2rem)] flex-col rounded-[24px] border border-[rgba(255,255,255,0.45)] bg-[rgba(255,255,255,0.72)] p-3 shadow-[0_16px_40px_rgba(15,23,42,0.12)] backdrop-blur-[20px] transition-all duration-200 ease-out ${
+          panelOpen ? 'w-[min(90vw,320px)]' : 'w-[210px]'
         }`}
       >
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="flex flex-1 rounded-xl bg-gray-100 p-0.5 text-sm">
-            {SECTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setSection(s)}
-                className={`flex-1 rounded-md px-3 py-1 font-medium capitalize transition-colors duration-200 ${
-                  section === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+        {/* Logo + collapse / expand */}
+        <div className="flex shrink-0 items-start justify-between gap-2">
+          <Image src={genvueLogo} alt="GenVue" priority sizes="150px" className="mt-0.5 h-auto w-[150px]" />
           <button
-            onClick={() => setPanelOpen(false)}
-            aria-label="Collapse panel"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition-colors duration-200 hover:bg-gray-50 hover:text-gray-800"
+            onClick={() => setPanelOpen((v) => !v)}
+            aria-label={panelOpen ? 'Collapse panel' : 'Expand panel'}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition-colors duration-200 hover:bg-white hover:text-gray-800"
           >
-            <ChevronLeft />
+            {panelOpen ? <ChevronLeft /> : <ChevronRight />}
           </button>
         </div>
-        <div className="no-scrollbar mt-3 min-h-0 overflow-y-auto">
+
+        {/* Section tabs — icons always, labels when expanded */}
+        <div className="mt-3 flex shrink-0 rounded-xl bg-gray-100/80 p-0.5 text-sm">
+          {SECTIONS.map((s) => (
+            <button
+              key={s}
+              onClick={() => {
+                setSection(s)
+                setPanelOpen(true)
+              }}
+              aria-label={s}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 font-medium capitalize transition-colors duration-200 ${
+                section === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              <SectionIcon section={s} />
+              {panelOpen && <span>{s}</span>}
+            </button>
+          ))}
+        </div>
+
+        {panelOpen && (
+          <div className="no-scrollbar mt-3 min-h-0 overflow-y-auto">
           {section === 'draw' && (
             <div className="flex flex-col gap-3">
               <Field label="Brush">
@@ -633,12 +634,8 @@ export default function ControlPage() {
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Subtle brand watermark */}
-      <div className="pointer-events-none absolute bottom-4 left-5 z-10 text-xs font-medium text-gray-400">
-        GenVue <span className="text-gray-300">Motion Interactive</span>
+          </div>
+        )}
       </div>
 
       <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoPick} className="hidden" />
@@ -650,12 +647,12 @@ export default function ControlPage() {
             <p className="mt-1 text-sm text-gray-500">Scan to download the PNG.</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={qr.image} alt="QR code" className="mx-auto mt-5 h-56 w-56 rounded-xl" />
-            <a href={qr.url} className="mt-5 inline-block break-all text-xs text-blue-600 underline">
+            <a href={qr.url} className="mt-5 inline-block break-all text-xs text-[#2F3E63] underline">
               {qr.url}
             </a>
             <button
               onClick={() => setQr(null)}
-              className="mt-6 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-blue-700"
+              className="mt-6 w-full rounded-lg bg-[#2F3E63] py-2.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#26324f]"
             >
               Done
             </button>
@@ -702,7 +699,7 @@ export default function ControlPage() {
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             className={`flex flex-col items-center gap-3 rounded-xl border border-gray-200 px-6 py-8 text-center transition-colors duration-200 ${
-              dragOver ? 'bg-blue-50' : 'bg-white'
+              dragOver ? 'bg-[#2F3E63]/[0.06]' : 'bg-white'
             }`}
           >
             <PhotoGlyph />
@@ -727,7 +724,7 @@ export default function ControlPage() {
 // A GenVue-blue filled track for the .gv-slider inputs.
 function sliderTrack(pct: number): string {
   const p = Math.max(0, Math.min(100, pct))
-  return `linear-gradient(to right, #2563eb ${p}%, rgba(0,0,0,0.08) ${p}%)`
+  return `linear-gradient(to right, #2F3E63 ${p}%, rgba(0,0,0,0.08) ${p}%)`
 }
 
 // Labelled control group — a small muted label above its control, with the
@@ -748,7 +745,7 @@ function ToolChip({ active, onClick, children }: { active: boolean; onClick: () 
       onClick={onClick}
       className={`rounded-lg px-2.5 py-1 text-sm font-medium transition-colors duration-200 ${
         active
-          ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-200'
+          ? 'bg-[#2F3E63]/[0.08] text-[#2F3E63] ring-1 ring-[#2F3E63]/25'
           : 'text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
       }`}
     >
@@ -788,7 +785,7 @@ function TextBtn({
       onClick={onClick}
       disabled={disabled}
       className={`rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 transition-colors duration-200 disabled:opacity-40 disabled:hover:text-gray-500 ${
-        danger ? 'hover:text-red-500' : 'hover:text-gray-900'
+        danger ? 'hover:text-gray-900' : 'hover:text-gray-900'
       }`}
     >
       {children}
@@ -814,7 +811,7 @@ function ColorDot({
       title={label}
       aria-label={label}
       className={`h-6 w-6 rounded-full transition-shadow duration-200 ${
-        selected ? 'ring-2 ring-blue-600 ring-offset-2 ring-offset-white' : 'ring-1 ring-gray-200'
+        selected ? 'ring-2 ring-[#2F3E63] ring-offset-2 ring-offset-white' : 'ring-1 ring-gray-200'
       }`}
       style={{ backgroundColor: color }}
     />
@@ -875,7 +872,7 @@ function GradientChip({
       onClick={onClick}
       title={label}
       className={`relative h-10 w-full overflow-hidden rounded-xl transition-shadow duration-200 ${
-        selected ? 'ring-2 ring-blue-600 ring-offset-2 ring-offset-white' : 'ring-1 ring-gray-200'
+        selected ? 'ring-2 ring-[#2F3E63] ring-offset-2 ring-offset-white' : 'ring-1 ring-gray-200'
       }`}
       style={{ background: css }}
     >
@@ -903,7 +900,7 @@ function ThemeTile({
       onClick={onClick}
       title={label}
       className={`relative h-16 w-full overflow-hidden rounded-2xl transition-shadow duration-200 ${
-        selected ? 'ring-2 ring-blue-600 ring-offset-2 ring-offset-white' : 'ring-1 ring-gray-200'
+        selected ? 'ring-2 ring-[#2F3E63] ring-offset-2 ring-offset-white' : 'ring-1 ring-gray-200'
       }`}
       style={{ background: css }}
     >
@@ -926,6 +923,54 @@ function ChevronRight() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// Section tab icons (Lucide outline geometry).
+function SectionIcon({ section }: { section: Section }) {
+  if (section === 'draw') return <DrawIcon />
+  if (section === 'photo') return <PhotoIcon />
+  return <BackgroundIcon />
+}
+
+const iconProps = {
+  width: 16,
+  height: 16,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 2,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+} as const
+
+function DrawIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
+function PhotoIcon() {
+  return (
+    <svg {...iconProps}>
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    </svg>
+  )
+}
+
+function BackgroundIcon() {
+  return (
+    <svg {...iconProps}>
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
     </svg>
   )
 }
