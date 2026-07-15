@@ -1,7 +1,13 @@
 // Shared drawing model + rendering used by both the controller and the display.
 // Coordinates are normalised to 0..1 so any screen size renders identically.
 
-export type Tool = 'pencil' | 'eraser'
+import { paintBackground, type Background } from './background'
+
+// Brush types. 'pencil' + 'eraser' are the originals; 'glow'/'neon'/'marker'
+// are premium brushes rendered with shadow bloom / vivid glow / wide translucent
+// ink. The tool already travels in the draw sync payload, so every brush renders
+// identically on the display and is captured in the exported PNG.
+export type Tool = 'pencil' | 'eraser' | 'glow' | 'neon' | 'marker'
 
 export type Point = { x: number; y: number }
 
@@ -28,25 +34,74 @@ export function drawStroke(
 ) {
   if (stroke.points.length === 0) return
 
+  const lw = Math.max(1, (stroke.size / REFERENCE_WIDTH) * w)
+
+  // save/restore isolates per-brush state (alpha, shadow) so nothing leaks into
+  // the next stroke — pencil/eraser render exactly as before.
+  ctx.save()
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
-  ctx.strokeStyle = stroke.tool === 'eraser' ? WHITE : stroke.color
-  ctx.lineWidth = Math.max(1, (stroke.size / REFERENCE_WIDTH) * w)
+  ctx.globalAlpha = 1
+  ctx.shadowBlur = 0
+  ctx.shadowColor = 'transparent'
 
-  ctx.beginPath()
-  const first = stroke.points[0]
-  ctx.moveTo(first.x * w, first.y * h)
-
-  if (stroke.points.length === 1) {
-    // A single tap: draw a dot.
-    ctx.lineTo(first.x * w + 0.01, first.y * h + 0.01)
-  } else {
-    for (let i = 1; i < stroke.points.length; i++) {
-      const p = stroke.points[i]
-      ctx.lineTo(p.x * w, p.y * h)
-    }
+  switch (stroke.tool) {
+    case 'eraser':
+      ctx.strokeStyle = WHITE
+      ctx.lineWidth = lw
+      break
+    case 'marker':
+      // Semi-transparent, wide ink.
+      ctx.strokeStyle = stroke.color
+      ctx.globalAlpha = 0.35
+      ctx.lineWidth = lw * 2.2
+      break
+    case 'glow':
+      // Soft bloom around the stroke.
+      ctx.strokeStyle = stroke.color
+      ctx.lineWidth = lw
+      ctx.shadowColor = stroke.color
+      ctx.shadowBlur = lw * 2.5
+      break
+    case 'neon':
+      // Bright, vivid outer glow (a white core is added in a second pass below).
+      ctx.strokeStyle = stroke.color
+      ctx.lineWidth = lw
+      ctx.shadowColor = stroke.color
+      ctx.shadowBlur = lw * 5
+      break
+    default: // pencil
+      ctx.strokeStyle = stroke.color
+      ctx.lineWidth = lw
   }
-  ctx.stroke()
+
+  const trace = () => {
+    ctx.beginPath()
+    const first = stroke.points[0]
+    ctx.moveTo(first.x * w, first.y * h)
+    if (stroke.points.length === 1) {
+      // A single tap: draw a dot.
+      ctx.lineTo(first.x * w + 0.01, first.y * h + 0.01)
+    } else {
+      for (let i = 1; i < stroke.points.length; i++) {
+        const p = stroke.points[i]
+        ctx.lineTo(p.x * w, p.y * h)
+      }
+    }
+    ctx.stroke()
+  }
+  trace()
+
+  // Neon: bright white core over the coloured glow for the classic tube look.
+  if (stroke.tool === 'neon') {
+    ctx.shadowBlur = lw * 2
+    ctx.lineWidth = Math.max(1, lw * 0.5)
+    ctx.strokeStyle = '#ffffff'
+    ctx.globalAlpha = 0.9
+    trace()
+  }
+
+  ctx.restore()
 }
 
 // Clear a canvas to solid white (the drawing surface is always white).
@@ -55,31 +110,19 @@ export function clearCanvas(ctx: CanvasRenderingContext2D, w: number, h: number)
   ctx.fillRect(0, 0, w, h)
 }
 
-// Paint an image as the background layer, scaled to fit entirely within the
-// canvas (contain) and centred, so the whole photo is visible without cropping.
-export function drawBackground(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  w: number,
-  h: number,
-) {
-  if (!img.complete || img.naturalWidth === 0) return
-  const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight)
-  const dw = img.naturalWidth * scale
-  const dh = img.naturalHeight * scale
-  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
-}
-
-// Full repaint: white base, then the optional background photo, then every
-// stroke on top. Passing no background keeps the original strokes-only behaviour.
+// Full repaint: white base, then the optional background (photo / solid colour
+// / gradient), then every stroke on top. `image` is the loaded photo pixels,
+// only needed when `background.type === 'photo'`. Passing no background keeps
+// the original strokes-only behaviour.
 export function redrawAll(
   ctx: CanvasRenderingContext2D,
   strokes: Stroke[],
   w: number,
   h: number,
-  background: HTMLImageElement | null = null,
+  background: Background | null = null,
+  image: HTMLImageElement | null = null,
 ) {
   clearCanvas(ctx, w, h)
-  if (background) drawBackground(ctx, background, w, h)
+  if (background) paintBackground(ctx, background, image, w, h)
   for (const stroke of strokes) drawStroke(ctx, stroke, w, h)
 }

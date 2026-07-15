@@ -73,10 +73,12 @@ app.prepare().then(() => {
       socket.broadcast.emit('canvas:sync', strokes)
     })
 
-    // Photo Mirroring: the controller sets a background photo (data URL, or
-    // null to clear). Store it and relay to every display.
-    socket.on('bg:set', (dataUrl) => {
-      background = typeof dataUrl === 'string' ? dataUrl : null
+    // Background: the controller sets the single active background — a
+    // descriptor object ({ type: 'photo' | 'solid' | 'gradient', ... }) or null
+    // to clear. Store it and relay to every display. (Same event/mechanism as
+    // before; only the payload grew from a bare data-URL string to an object.)
+    socket.on('bg:set', (bg) => {
+      background = bg && typeof bg === 'object' ? bg : null
       socket.broadcast.emit('bg:sync', background)
     })
   })

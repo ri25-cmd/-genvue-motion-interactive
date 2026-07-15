@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { getSocket } from '@/lib/socket'
 import { loadImage } from '@/lib/image'
 import { drawStroke, redrawAll, type Stroke, type Point } from '@/lib/drawing'
+import type { Background } from '@/lib/background'
 
 // DISPLAY: fullscreen white canvas, no controls. Renders whatever the
 // controller draws, in real time, and stays in sync if it (re)loads mid-session.
@@ -11,8 +12,10 @@ export default function DisplayPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   // Local mirror of the canvas state, used for full redraws (sync + resize).
   const strokesRef = useRef<Stroke[]>([])
-  // The mirrored background photo, painted beneath the strokes on every redraw.
-  const bgRef = useRef<HTMLImageElement | null>(null)
+  // The mirrored background: the descriptor (photo / solid / gradient) plus, for
+  // a photo, the loaded image. Painted beneath the strokes on every redraw.
+  const bgRef = useRef<Background | null>(null)
+  const bgImageRef = useRef<HTMLImageElement | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -24,7 +27,7 @@ export default function DisplayPage() {
       const dpr = window.devicePixelRatio || 1
       canvas.width = Math.floor(window.innerWidth * dpr)
       canvas.height = Math.floor(window.innerHeight * dpr)
-      redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, bgRef.current)
+      redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, bgRef.current, bgImageRef.current)
     }
     size()
     window.addEventListener('resize', size)
@@ -33,23 +36,26 @@ export default function DisplayPage() {
 
     const onSync = (strokes: Stroke[]) => {
       strokesRef.current = strokes
-      redrawAll(ctx, strokes, canvas.width, canvas.height, bgRef.current)
+      redrawAll(ctx, strokes, canvas.width, canvas.height, bgRef.current, bgImageRef.current)
     }
 
-    // Photo Mirroring: a new background photo (or null to clear) arrived from
-    // the controller. Load it, then repaint so it sits beneath the strokes.
-    const onBg = async (dataUrl: string | null) => {
-      if (!dataUrl) {
-        bgRef.current = null
-        redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, null)
-        return
+    // Background: a new background (photo / solid / gradient, or null to clear)
+    // arrived from the controller. For a photo, load the pixels first; then
+    // repaint so the background sits beneath the strokes.
+    const onBg = async (bg: Background | null) => {
+      bgRef.current = bg
+      if (bg?.type === 'photo') {
+        try {
+          bgImageRef.current = await loadImage(bg.src)
+        } catch {
+          bgImageRef.current = null
+        }
+      } else {
+        bgImageRef.current = null
       }
-      try {
-        bgRef.current = await loadImage(dataUrl)
-        redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, bgRef.current)
-      } catch {
-        /* ignore a bad image; leave the current canvas untouched */
-      }
+      // Guard against a newer background arriving while the image was loading.
+      if (bgRef.current !== bg) return
+      redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, bgRef.current, bgImageRef.current)
     }
 
     const onStart = (s: Stroke & Point) => {
