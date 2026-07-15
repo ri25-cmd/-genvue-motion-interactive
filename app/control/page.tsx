@@ -6,6 +6,7 @@ import QRCode from 'qrcode'
 import genvueLogo from '@/public/images/genvue-logo.png'
 import { getSocket } from '@/lib/socket'
 import { fileToDataUrl, loadImage } from '@/lib/image'
+import { composeExportImage, formatExportDate, blobToDataUrl } from '@/lib/export/composeExportImage'
 import { drawStroke, redrawAll, type Stroke, type Tool, type Point } from '@/lib/drawing'
 import {
   SOLID_COLORS,
@@ -349,11 +350,26 @@ export default function ControlPage() {
     if (!canvas || saving) return
     setSaving(true)
     try {
-      const dataUrl = canvas.toDataURL('image/png')
+      // 1) Raw drawing PNG — existing behaviour, kept internally.
+      const rawDataUrl = canvas.toDataURL('image/png')
+
+      // 2) Branded GenVue export — compose the drawing into the frame template
+      // and stamp today's date. If the template can't be loaded, fall back to
+      // the raw PNG so Save never breaks.
+      let uploadDataUrl = rawDataUrl
+      try {
+        const template = await loadImage('/templates/genvue-frame.png')
+        const blob = await composeExportImage(canvas, template, formatExportDate(new Date()))
+        uploadDataUrl = await blobToDataUrl(blob)
+      } catch {
+        uploadDataUrl = rawDataUrl
+      }
+
+      // The user downloads (and the QR points to) the branded export.
       const res = await fetch('/api/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataUrl }),
+        body: JSON.stringify({ dataUrl: uploadDataUrl }),
       })
       if (!res.ok) throw new Error('save failed')
       const { url } = await res.json()
