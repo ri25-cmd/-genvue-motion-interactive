@@ -19,6 +19,9 @@ const handle = app.getRequestHandler()
 // refreshes) mid-session immediately receives the current drawing.
 let strokes = []
 const strokeIndex = new Map()
+// The current background photo (a data URL) for Photo Mirroring, kept so a
+// display that joins mid-session receives it alongside the strokes.
+let background = null
 
 app.prepare().then(() => {
   const httpServer = createServer((req, res) => handle(req, res))
@@ -26,11 +29,17 @@ app.prepare().then(() => {
   const io = new Server(httpServer, {
     // Keep the drawing responsive over local Wi-Fi.
     cors: { origin: '*' },
+    // Photo Mirroring sends the background image as a base64 data URL, which
+    // exceeds Socket.IO's 1 MB default and would otherwise be silently dropped
+    // (draw events are tiny, so only the photo is affected). Allow up to 10 MB.
+    maxHttpBufferSize: 1e7,
   })
 
   io.on('connection', (socket) => {
     // Send the current canvas so late-joining displays stay in sync.
     socket.emit('canvas:sync', strokes)
+    // ...and the current background photo, if one has been mirrored.
+    socket.emit('bg:sync', background)
 
     socket.on('draw:start', (s) => {
       const stroke = {
@@ -62,6 +71,13 @@ app.prepare().then(() => {
       strokeIndex.clear()
       for (const stroke of strokes) strokeIndex.set(stroke.id, stroke)
       socket.broadcast.emit('canvas:sync', strokes)
+    })
+
+    // Photo Mirroring: the controller sets a background photo (data URL, or
+    // null to clear). Store it and relay to every display.
+    socket.on('bg:set', (dataUrl) => {
+      background = typeof dataUrl === 'string' ? dataUrl : null
+      socket.broadcast.emit('bg:sync', background)
     })
   })
 

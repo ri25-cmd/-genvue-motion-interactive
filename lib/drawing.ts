@@ -55,12 +55,31 @@ export function clearCanvas(ctx: CanvasRenderingContext2D, w: number, h: number)
   ctx.fillRect(0, 0, w, h)
 }
 
+// Paint an image as the background layer, scaled to fit entirely within the
+// canvas (contain) and centred, so the whole photo is visible without cropping.
+export function drawBackground(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  w: number,
+  h: number,
+) {
+  if (!img.complete || img.naturalWidth === 0) return
+  const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight)
+  const dw = img.naturalWidth * scale
+  const dh = img.naturalHeight * scale
+  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
+}
+
+// Full repaint: white base, then the optional background photo, then every
+// stroke on top. Passing no background keeps the original strokes-only behaviour.
 export function redrawAll(
   ctx: CanvasRenderingContext2D,
   strokes: Stroke[],
   w: number,
   h: number,
+  background: HTMLImageElement | null = null,
 ) {
   clearCanvas(ctx, w, h)
+  if (background) drawBackground(ctx, background, w, h)
   for (const stroke of strokes) drawStroke(ctx, stroke, w, h)
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { getSocket } from '@/lib/socket'
+import { loadImage } from '@/lib/image'
 import { drawStroke, redrawAll, type Stroke, type Point } from '@/lib/drawing'
 
 // DISPLAY: fullscreen white canvas, no controls. Renders whatever the
@@ -10,6 +11,8 @@ export default function DisplayPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   // Local mirror of the canvas state, used for full redraws (sync + resize).
   const strokesRef = useRef<Stroke[]>([])
+  // The mirrored background photo, painted beneath the strokes on every redraw.
+  const bgRef = useRef<HTMLImageElement | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -21,7 +24,7 @@ export default function DisplayPage() {
       const dpr = window.devicePixelRatio || 1
       canvas.width = Math.floor(window.innerWidth * dpr)
       canvas.height = Math.floor(window.innerHeight * dpr)
-      redrawAll(ctx, strokesRef.current, canvas.width, canvas.height)
+      redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, bgRef.current)
     }
     size()
     window.addEventListener('resize', size)
@@ -30,7 +33,23 @@ export default function DisplayPage() {
 
     const onSync = (strokes: Stroke[]) => {
       strokesRef.current = strokes
-      redrawAll(ctx, strokes, canvas.width, canvas.height)
+      redrawAll(ctx, strokes, canvas.width, canvas.height, bgRef.current)
+    }
+
+    // Photo Mirroring: a new background photo (or null to clear) arrived from
+    // the controller. Load it, then repaint so it sits beneath the strokes.
+    const onBg = async (dataUrl: string | null) => {
+      if (!dataUrl) {
+        bgRef.current = null
+        redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, null)
+        return
+      }
+      try {
+        bgRef.current = await loadImage(dataUrl)
+        redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, bgRef.current)
+      } catch {
+        /* ignore a bad image; leave the current canvas untouched */
+      }
     }
 
     const onStart = (s: Stroke & Point) => {
@@ -59,12 +78,14 @@ export default function DisplayPage() {
     }
 
     socket.on('canvas:sync', onSync)
+    socket.on('bg:sync', onBg)
     socket.on('draw:start', onStart)
     socket.on('draw:move', onMove)
 
     return () => {
       window.removeEventListener('resize', size)
       socket.off('canvas:sync', onSync)
+      socket.off('bg:sync', onBg)
       socket.off('draw:start', onStart)
       socket.off('draw:move', onMove)
     }

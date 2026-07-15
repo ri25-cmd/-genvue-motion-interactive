@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import QRCode from 'qrcode'
 import { getSocket } from '@/lib/socket'
+import { fileToDataUrl, loadImage } from '@/lib/image'
 import { drawStroke, redrawAll, type Stroke, type Tool, type Point } from '@/lib/drawing'
 
 const PRESET_COLORS = ['#000000', '#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']
@@ -15,6 +16,10 @@ export default function ControlPage() {
   const redoRef = useRef<Stroke[]>([])
   const currentRef = useRef<Stroke | null>(null)
   const drawingRef = useRef(false)
+  // Photo Mirroring: the loaded background image, plus a handle to the hidden
+  // file input that opens the native picker.
+  const bgRef = useRef<HTMLImageElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Live tool settings, mirrored into refs so the once-attached pointer
   // handlers always read the latest values.
@@ -37,7 +42,7 @@ export default function ControlPage() {
   const redrawLocal = () => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
-    if (canvas && ctx) redrawAll(ctx, strokesRef.current, canvas.width, canvas.height)
+    if (canvas && ctx) redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, bgRef.current)
   }
   const refreshHistory = () => {
     setCanUndo(strokesRef.current.length > 0)
@@ -57,7 +62,7 @@ export default function ControlPage() {
       const rect = canvas.getBoundingClientRect()
       canvas.width = Math.floor(rect.width * dpr)
       canvas.height = Math.floor(rect.height * dpr)
-      redrawAll(ctx, strokesRef.current, canvas.width, canvas.height)
+      redrawAll(ctx, strokesRef.current, canvas.width, canvas.height, bgRef.current)
     }
     size()
     window.addEventListener('resize', size)
@@ -178,6 +183,21 @@ export default function ControlPage() {
     syncDisplay()
     refreshHistory()
   }
+  const handlePhotoPick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // reset so picking the same file again still fires
+    if (!file) return
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      // Load locally as the background layer (strokes keep drawing on top)...
+      bgRef.current = await loadImage(dataUrl)
+      redrawLocal()
+      // ...and mirror it to every connected display over the existing socket.
+      getSocket().emit('bg:set', dataUrl)
+    } catch {
+      alert('Could not load that image. Please try another.')
+    }
+  }
   const handleSave = async () => {
     const canvas = canvasRef.current
     if (!canvas || saving) return
@@ -214,6 +234,17 @@ export default function ControlPage() {
           <ToolButton active={tool === 'pencil'} onClick={() => setTool('pencil')} label="Pencil" />
           <ToolButton active={tool === 'eraser'} onClick={() => setTool('eraser')} label="Eraser" />
         </div>
+
+        <div className="flex gap-1 rounded-xl bg-white p-1 shadow-sm">
+          <ToolButton active={false} onClick={() => fileInputRef.current?.click()} label="Photo" />
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handlePhotoPick}
+          className="hidden"
+        />
 
         <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-sm">
           {PRESET_COLORS.map((c) => (
