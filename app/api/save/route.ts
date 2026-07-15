@@ -20,9 +20,13 @@ export async function POST(request: NextRequest) {
       resource_type: 'image',
     })
 
-    // The QR code on the controller is built from this url, so returning the
-    // Cloudinary secure_url makes the QR point straight at the hosted image.
-    return Response.json({ url: result.secure_url })
+    // The QR code on the controller is built from this url. Injecting the
+    // fl_attachment flag into the delivery URL makes Cloudinary serve the image
+    // with Content-Disposition: attachment, so scanning the QR downloads the
+    // PNG (keeping its filename) instead of opening it in the browser.
+    return Response.json({
+      url: result.secure_url.replace('/upload/', '/upload/fl_attachment/'),
+    })
   } catch {
     return Response.json({ error: 'Failed to save' }, { status: 500 })
   }
