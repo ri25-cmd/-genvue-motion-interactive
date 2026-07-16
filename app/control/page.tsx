@@ -80,7 +80,7 @@ export default function ControlPage() {
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [qr, setQr] = useState<{ image: string; url: string } | null>(null)
+  const [qr, setQr] = useState<{ image: string; url: string; downloadUrl: string } | null>(null)
   // UI mirror of the active background (drives swatch highlighting + button
   // enabled state). The authoritative copy for rendering lives in backgroundRef.
   const [background, setBackground] = useState<Background | null>(null)
@@ -383,9 +383,12 @@ export default function ControlPage() {
         body: JSON.stringify({ dataUrl: uploadDataUrl }),
       })
       if (!res.ok) throw new Error('save failed')
-      const { url } = await res.json()
+      // The QR + link carry the plain secure_url (scanning opens the image);
+      // the Download button carries the fl_attachment variant. Both address the
+      // same uploaded PNG.
+      const { url, downloadUrl } = await res.json()
       const image = await QRCode.toDataURL(url, { width: 320, margin: 2 })
-      setQr({ image, url })
+      setQr({ image, url, downloadUrl })
     } catch {
       alert('Could not save the drawing. Please try again.')
     } finally {
@@ -671,18 +674,26 @@ export default function ControlPage() {
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/30 p-6">
           <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-xl">
             <h2 className="text-lg font-semibold tracking-tight text-gray-900">Drawing saved</h2>
-            <p className="mt-1 text-sm text-gray-500">Scan to download the PNG.</p>
+            <p className="mt-1 text-sm text-gray-500">Scan to open the PNG.</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={qr.image} alt="QR code" className="mx-auto mt-5 h-56 w-56 rounded-xl" />
             <a href={qr.url} className="mt-5 inline-block break-all text-xs text-[#2F3E63] underline">
               {qr.url}
             </a>
-            <button
-              onClick={() => setQr(null)}
-              className="mt-6 w-full rounded-lg bg-[#2F3E63] py-2.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#26324f]"
-            >
-              Done
-            </button>
+            <div className="mt-6 flex items-center gap-2">
+              <a
+                href={qr.downloadUrl}
+                className="flex-1 rounded-lg bg-white py-2.5 text-center text-sm font-semibold text-gray-800 shadow-sm ring-1 ring-gray-200 transition-colors duration-200 hover:bg-gray-50"
+              >
+                Download PNG
+              </a>
+              <button
+                onClick={() => setQr(null)}
+                className="flex-1 rounded-lg bg-[#2F3E63] py-2.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#26324f]"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}
