@@ -24,6 +24,19 @@ import {
 const PRESET_COLORS = ['#111827', '#6b7280', '#2563eb', '#10b981', '#ef4444']
 const GRADIENT_ANGLE = 135
 
+// Where the export stamps today's date. In the 1080x1080 frame the "Date:"
+// label occupies x 111..160 with its baseline at y 940, white on the navy
+// footer — so the value sits just after it, in matching white. Fractions keep
+// the placement correct whatever resolution the template is supplied at.
+const EXPORT_DATE_LAYOUT = {
+  xFrac: 172 / 1080,
+  yFrac: 940 / 1080,
+  align: 'left' as const,
+  baseline: 'alphabetic' as const,
+  color: '#ffffff',
+  sizeFrac: 19 / 1080,
+}
+
 const BRUSHES: { tool: Tool; label: string }[] = [
   { tool: 'pencil', label: 'Pencil' },
   { tool: 'glow', label: 'Glow' },
@@ -350,22 +363,20 @@ export default function ControlPage() {
     if (!canvas || saving) return
     setSaving(true)
     try {
-      // 1) Raw drawing PNG — existing behaviour, kept internally.
-      const rawDataUrl = canvas.toDataURL('image/png')
+      // Compose the drawing into the branded frame and stamp today's date. This
+      // composed PNG is the only artefact that leaves here: it is what uploads,
+      // what the QR resolves to, and what the visitor downloads. There is
+      // deliberately no raw-canvas fallback — if the template can't be loaded we
+      // fail loudly rather than quietly handing over an unbranded drawing.
+      const template = await loadImage('/templates/genvue-frame.png')
+      const blob = await composeExportImage(canvas, template, formatExportDate(new Date()), {
+        // Compose at the template's exact pixel dimensions, so the frame is
+        // reproduced 1:1 and never resampled.
+        target: Math.max(template.naturalWidth, template.naturalHeight),
+        date: EXPORT_DATE_LAYOUT,
+      })
+      const uploadDataUrl = await blobToDataUrl(blob)
 
-      // 2) Branded GenVue export — compose the drawing into the frame template
-      // and stamp today's date. If the template can't be loaded, fall back to
-      // the raw PNG so Save never breaks.
-      let uploadDataUrl = rawDataUrl
-      try {
-        const template = await loadImage('/templates/genvue-frame.png')
-        const blob = await composeExportImage(canvas, template, formatExportDate(new Date()))
-        uploadDataUrl = await blobToDataUrl(blob)
-      } catch {
-        uploadDataUrl = rawDataUrl
-      }
-
-      // The user downloads (and the QR points to) the branded export.
       const res = await fetch('/api/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

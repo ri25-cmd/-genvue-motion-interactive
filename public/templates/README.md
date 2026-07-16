@@ -7,19 +7,21 @@ Place the branded GenVue frame here as:
 The controller's **Save Drawing** flow composes the user's artwork into this
 frame (see `lib/export/composeExportImage.ts`):
 
-- A new high-resolution canvas is created (2160 on the long edge; a square frame
-  → 2160×2160).
+- A new canvas is created at the template's **exact pixel dimensions**, so the
+  frame is reproduced 1:1 and never resampled (the shipped frame is 1080×1080).
 - The template is drawn as the background, **untouched** (never distorted — we
   only draw on top of it).
 - The artwork is drawn into the **largest white square** in the template
   (auto-detected), `object-fit: contain` — proportional, centred, never
   stretched.
-- Today's date (`16 July 2026`) is stamped beside the `Date:` label in Inter /
-  dark GenVue navy (`#2F3E63`).
-- The composed image is exported as a PNG Blob; the QR/download point to it.
+- Today's date (`16 July 2026`) is stamped beside the `Date:` label in Inter,
+  in **white** — the label sits on the navy footer, so navy text would be
+  invisible there.
+- The composed image is exported as a PNG Blob; that exact PNG is what uploads to
+  Cloudinary, what the QR resolves to, and what the visitor downloads.
 
-If this file is missing, Save falls back to uploading the raw drawing PNG, so the
-workflow keeps working either way.
+**This file is required.** There is no raw-canvas fallback: if it is missing,
+Save fails with an error rather than silently handing over an unbranded drawing.
 
 ## Tuning
 
