@@ -6,7 +6,9 @@
 //   • a new high-resolution canvas (default 2160 on the long edge)
 //   • the template drawn as the background (kept 1:1, never distorted)
 //   • the artwork drawn into the large white square (object-fit: contain —
-//     proportional, centred, never stretched)
+//     proportional, centred, never stretched), sized from what was actually
+//     drawn rather than the whole canvas, so a drawing that floats in empty
+//     space still fills the frame
 //   • today's date stamped beside the "Date:" label in the template's typography
 //   • exported as a PNG Blob
 //
@@ -121,6 +123,41 @@ export function detectPlaceholder(template: HTMLImageElement): Rect {
   }
 }
 
+// Smallest rect containing every non-transparent pixel — i.e. what the user
+// actually drew, ignoring the empty canvas around it. Fitting this (rather than
+// the whole canvas) is what lets a small drawing fill the frame's white square.
+// Returns null for a completely empty canvas, in which case the caller falls
+// back to the full canvas. Note that when a background (photo / solid /
+// gradient) is set, every pixel is opaque and this returns the whole canvas —
+// the composition is then identical to a plain contain fit.
+export function detectContentBounds(canvas: HTMLCanvasElement): Rect | null {
+  const w = canvas.width
+  const h = canvas.height
+  if (w <= 0 || h <= 0) return null
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return null
+
+  const { data } = ctx.getImageData(0, 0, w, h)
+  let minX = w
+  let minY = h
+  let maxX = -1
+  let maxY = -1
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // Any alpha at all counts, so the soft edges of glow/neon strokes are
+      // included rather than clipped off.
+      if (data[(y * w + x) * 4 + 3] !== 0) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+  if (maxX < 0) return null // nothing drawn
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
+}
+
 // Compose the branded export and return it as a PNG Blob.
 export async function composeExportImage(
   canvas: HTMLCanvasElement,
@@ -160,10 +197,15 @@ export async function composeExportImage(
   const cw = canvas.width
   const ch = canvas.height
   if (cw > 0 && ch > 0) {
-    const fit = Math.min(bw / cw, bh / ch)
-    const dw = cw * fit
-    const dh = ch * fit
-    ctx.drawImage(canvas, bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh)
+    // Fit what was drawn, not the blank canvas around it. A contain fit already
+    // maximises size for a given source, so the only way to make the artwork
+    // larger without overflowing the square or cropping is to stop wasting the
+    // box on empty margins.
+    const src = detectContentBounds(canvas) ?? { x: 0, y: 0, w: cw, h: ch }
+    const fit = Math.min(bw / src.w, bh / src.h)
+    const dw = src.w * fit
+    const dh = src.h * fit
+    ctx.drawImage(canvas, src.x, src.y, src.w, src.h, bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh)
   }
 
   // 3) Date, beside the "Date:" label, in the existing typography (dark navy).

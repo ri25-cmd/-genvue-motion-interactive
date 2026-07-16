@@ -25,12 +25,13 @@ const PRESET_COLORS = ['#111827', '#6b7280', '#2563eb', '#10b981', '#ef4444']
 const GRADIENT_ANGLE = 135
 
 // Where the export stamps today's date. In the 1080x1080 frame the "Date:"
-// label occupies x 111..160 with its baseline at y 940, white on the navy
-// footer — so the value sits just after it, in matching white. Fractions keep
-// the placement correct whatever resolution the template is supplied at.
+// label occupies x 152..211 with its baseline at y 911, white on the slate
+// footer — so the value sits just after it, sharing that baseline so the two
+// read as one line. Fractions keep the placement correct whatever resolution
+// the template is supplied at.
 const EXPORT_DATE_LAYOUT = {
-  xFrac: 172 / 1080,
-  yFrac: 940 / 1080,
+  xFrac: 223 / 1080,
+  yFrac: 911 / 1080,
   align: 'left' as const,
   baseline: 'alphabetic' as const,
   color: '#ffffff',
