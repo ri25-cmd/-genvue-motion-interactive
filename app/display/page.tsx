@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import Image from 'next/image'
+import genvueLogo from '@/public/images/genvue-logo.png'
 import { getSocket } from '@/lib/socket'
 import { loadImage } from '@/lib/image'
 import { drawStroke, redrawAll, type Stroke, type Point } from '@/lib/drawing'
@@ -100,6 +102,13 @@ export default function DisplayPage() {
   return (
     <div className="fixed inset-0 bg-white">
       <canvas ref={canvasRef} className="block h-full w-full" />
+      <Image
+        src={genvueLogo}
+        alt="GenVue"
+        priority
+        sizes="(min-width: 1024px) 240px, (min-width: 768px) 180px, 140px"
+        className="pointer-events-none fixed right-[32px] top-[12px] z-10 h-auto w-[140px] md:w-[180px] lg:w-[240px]"
+      />
     </div>
   )
 }
